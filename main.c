@@ -7,6 +7,8 @@
 #include <psp2/touch.h>
 #include <psp2/motion.h>
 #include <taihen.h>
+#include <math.h>
+#include <stdlib.h>
 #include "log.h"
 
 #define DS4_VID   0x054C
@@ -142,12 +144,12 @@ static int ds4_send_report(unsigned int mac0, unsigned int mac1, uint8_t flags, 
 
 	req = mempool_alloc(sizeof(*req));
 	if (!req) {
-		LOG("Error allocatin BT HID Request\n");
+		//LOG("Error allocatin BT HID Request\n");
 		return -1;
 	}
 
 	if ((buf = mempool_alloc((len + 1) * sizeof(*buf))) == NULL) {
-		LOG("Memory allocation error (mesg array)\n");
+		//LOG("Memory allocation error (mesg array)\n");
 		return -1;
 	}
 
@@ -186,7 +188,7 @@ static int ds4_send_0x11_report(unsigned int mac0, unsigned int mac1)
 	};
 
 	if (ds4_send_report(mac0, mac1, 0, 0x11, sizeof(data), data)) {
-		LOG("Status request error\n");
+		//LOG("Status request error\n");
 		return -1;
 	}
 
@@ -199,6 +201,7 @@ static void reset_input_emulation()
 	ksceCtrlSetAnalogEmulation(0, 0, 0x80, 0x80, 0x80, 0x80,
 		0x80, 0x80, 0x80, 0x80, 0);
 }
+
 
 static void set_input_emulation(struct ds4_input_report *ds4)
 {
@@ -254,15 +257,121 @@ static void set_input_emulation(struct ds4_input_report *ds4)
 		js_moved = 1;
 	}
 
+	signed int convertedX, convertedY;
+	unsigned char sendingX, sendingY;
+	signed int result;
+	signed int resultX, resultY;
+
+
+	convertedX = ds4->left_x - 128;
+	convertedY = 128 - ds4->left_y;
+	sendingX = ds4->left_x;
+	sendingY = ds4->left_y;
+
+	result = (pow(convertedX,2) + pow(convertedY,2));
+		
+	if(result > pow(256 / 2,2)){
+		if(convertedX > 0){
+                    if(convertedY > 0){
+			//ksceDebugPrintf("Upper right\n");
+                        //upper right
+                        if(convertedX == convertedY){
+                            resultX = 256;
+                            resultY = 0;
+                        }
+                        else if(convertedX < convertedY){
+                            resultX = (int) round((double)((double) convertedX / convertedY * 128)) + 128;
+                            resultY = 0;
+                        }
+                        else{
+                            resultX = 256;
+			    resultY = 128 - (int) round( (double) ((double) convertedY / convertedX * 128));
+                        }
+                    }
+                    else{
+                        //ksceDebugPrintf("lower right\n");
+                        if(convertedX == (convertedY * -1)){
+                            resultX = 256;
+                            resultY = 256;
+                        }
+                        else if(convertedX < (convertedY * -1)){
+                            resultX = (int) round( (double) ( (double) convertedX / (convertedY * -1) * 128)) + 128;
+                            resultY = 256;
+                        }
+                        else{
+                            resultX = 256;
+                            resultY = 128 + (int) round((double) ( (double) (convertedY * -1) / convertedX * 128));
+                        }
+                    }
+                }
+                else{
+                    if(convertedY > 0){
+                        //ksceDebugPrintf("upper left\n");
+			if((convertedX * -1) == convertedY){
+                            resultX = 0;
+                            resultY = 0;
+                        }
+                        else if((convertedX * -1) < convertedY){
+                            resultX = (int) round( (double) ((double) convertedX / convertedY * 128))+128;
+                            resultY = 0;
+                        }
+                        else{
+                            resultX = 0;
+                            resultY = 128 - (int) round((double) ((double) convertedY / (convertedX * -1) * 128));
+                        }
+                    }
+                    else{
+                        //ksceDebugPrintf("lower left\n");
+                        if(convertedX == convertedY){
+                            resultX = 0;
+                            resultY = 256;
+                        }
+                        else if(convertedX > convertedY){
+                            resultX = 128 - (int) round((double) ((double) convertedX / convertedY * 128));
+                            resultY = 256;
+                        }
+                        else{
+                            resultX = 0;
+                            resultY = 128 + (int) round((double) ((double) convertedY / convertedX * 128));
+                        }
+                    }
+                }
+			
+		if(resultX > 255){
+			sendingX = 255;
+		}
+		else if(resultX < 0){
+			sendingX = 0;
+		}
+		else{
+			sendingX = (unsigned char)resultX;
+		}
+
+		if(resultY > 255){
+			sendingY = 255;
+		}
+		else if(resultY < 0){
+			sendingY = 0;
+		}
+		else{
+			sendingY = (unsigned char)resultY;
+		}
+		/*ksceDebugPrintf("CX: %d \n",convertedX);
+		ksceDebugPrintf("CY: %d \n",convertedY);
+		ksceDebugPrintf("X: %d \n",resultX);
+		ksceDebugPrintf("Y: %d \n",resultY);*/
+			
+	}
+
 	ksceCtrlSetButtonEmulation(0, 0, buttons, buttons, 32);
 
-	ksceCtrlSetAnalogEmulation(0, 0, ds4->left_x, ds4->left_y,
-		ds4->right_x, ds4->right_y, ds4->left_x, ds4->left_y,
-		ds4->right_x, ds4->right_y, 1);
-
+	ksceCtrlSetAnalogEmulation(0, 0, sendingX, sendingY,
+		ds4->right_x, ds4->right_y, sendingX, sendingY,
+		ds4->right_x, ds4->right_y, 16);
 	if (buttons != 0 || js_moved)
 		ksceKernelPowerTick(0);
 }
+
 
 static void patch_analogdata(int port, SceCtrlData *pad_data, int count,
 			    struct ds4_input_report *ds4)
@@ -516,10 +625,10 @@ static int bt_cb_func(int notifyId, int notifyCount, int notifyArg, void *common
 			break;
 		}
 
-		LOG("->Event:");
+		/*LOG("->Event:");
 		for (int i = 0; i < 0x10; i++)
 			LOG(" %02X", hid_event.data[i]);
-		LOG("\n");
+		LOG("\n");*/
 
 		/*
 		 * If we get an event with a MAC, and the MAC is different
@@ -589,7 +698,7 @@ static int bt_cb_func(int notifyId, int notifyCount, int notifyArg, void *common
 
 		case 0x0A: /* HID reply to 0-type request */
 
-			LOG("DS4 0x0A event: 0x%02X\n", recv_buff[0]);
+			//LOG("DS4 0x0A event: 0x%02X\n", recv_buff[0]);
 
 			switch (recv_buff[0]) {
 			case 0x11:
@@ -667,12 +776,12 @@ int module_start(SceSize argc, const void *args)
 
 	log_reset();
 
-	LOG("ds4vita by xerpi\n");
+	//LOG("ds4vita by xerpi\n");
 
 	SceBt_modinfo.size = sizeof(SceBt_modinfo);
 	ret = taiGetModuleInfoForKernel(KERNEL_PID, "SceBt", &SceBt_modinfo);
 	if (ret < 0) {
-		LOG("Error finding SceBt module\n");
+		//LOG("Error finding SceBt module\n");
 		goto error_find_scebt;
 	}
 
@@ -728,14 +837,14 @@ int module_start(SceSize argc, const void *args)
 	opt.field_18 = 0;
 
 	bt_mempool_uid = ksceKernelCreateHeap("ds4vita_mempool", 0x100, &opt);
-	LOG("Bluetooth mempool UID: 0x%08X\n", bt_mempool_uid);
+	//LOG("Bluetooth mempool UID: 0x%08X\n", bt_mempool_uid);
 
 	bt_thread_uid = ksceKernelCreateThread("ds4vita_bt_thread", ds4vita_bt_thread,
 		0x3C, 0x1000, 0, 0x10000, 0);
-	LOG("Bluetooth thread UID: 0x%08X\n", bt_thread_uid);
+	//LOG("Bluetooth thread UID: 0x%08X\n", bt_thread_uid);
 	ksceKernelStartThread(bt_thread_uid, 0, NULL);
 
-	LOG("module_start finished successfully!\n");
+//	LOG("module_start finished successfully!\n");
 
 	return SCE_KERNEL_START_SUCCESS;
 
