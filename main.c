@@ -319,8 +319,102 @@ static void patch_ctrl_data(const struct ds4_input_report *ds4, SceCtrlData *pad
 		right_js_moved = 1;
 
 	if (left_js_moved) {
-		pad_data->lx = ds4->left_x;
-		pad_data->ly = ds4->left_y;
+		signed int result, convertedX, convertedY, resultX, resultY;
+		convertedX = ds4->left_x - 128;
+                convertedY = 128 - ds4->left_y;
+		result = (pow(convertedX,2) + pow(convertedY,2));
+		if(result > pow(256 / 2,2)){
+			if(convertedX > 0){
+                    if(convertedY > 0){
+						//ksceDebugPrintf("Upper right\n");
+                        //upper right
+                        if(convertedX == convertedY){
+                            resultX = 256;
+                            resultY = 0;
+                        }
+                        else if(convertedX < convertedY){
+                            resultX = (int) round((double)((double) convertedX / convertedY * 128)) + 128;
+                            resultY = 0;
+                        }
+                        else{
+                            resultX = 256;
+			    			resultY = 128 - (int) round( (double) ((double) convertedY / convertedX * 128));
+                        }
+                    }
+                    else{
+                        //ksceDebugPrintf("lower right\n");
+                        if(convertedX == (convertedY * -1)){
+                            resultX = 256;
+                            resultY = 256;
+                        }
+                        else if(convertedX < (convertedY * -1)){
+                            resultX = (int) round( (double) ( (double) convertedX / (convertedY * -1) * 128)) + 128;
+                            resultY = 256;
+                        }
+                        else{
+                            resultX = 256;
+                            resultY = 128 + (int) round((double) ( (double) (convertedY * -1) / convertedX * 128));
+                        }
+                    }
+                }
+                else{
+                    if(convertedY > 0){
+                        //ksceDebugPrintf("upper left\n");
+						if((convertedX * -1) == convertedY){
+                            resultX = 0;
+                            resultY = 0;
+                        }
+                        else if((convertedX * -1) < convertedY){
+                            resultX = (int) round( (double) ((double) convertedX / convertedY * 128))+128;
+                            resultY = 0;
+                        }
+                        else{
+                            resultX = 0;
+                            resultY = 128 - (int) round((double) ((double) convertedY / (convertedX * -1) * 128));
+                        }
+                    }
+                    else{
+                        //ksceDebugPrintf("lower left\n");
+                        if(convertedX == convertedY){
+                            resultX = 0;
+                            resultY = 256;
+                        }
+                        else if(convertedX > convertedY){
+                            resultX = 128 - (int) round((double) ((double) convertedX / convertedY * 128));
+                            resultY = 256;
+                        }
+                        else{
+                            resultX = 0;
+                            resultY = 128 + (int) round((double) ((double) convertedY / convertedX * 128));
+                        }
+                    }
+                }
+			
+			if(resultX > 255){
+				pad_data->lx = 255;
+			}
+			else if(resultX < 0){
+				pad_data->lx = 0;
+			}
+			else{
+				pad_data->lx = (unsigned char)resultX;
+			}
+
+			if(resultY > 255){
+				pad_data->ly = 255;
+			}
+			else if(resultY < 0){
+				pad_data->ly = 0;
+			}
+			else{
+				pad_data->ly = (unsigned char)resultY;
+			}
+		}
+		else{
+			pad_data->lx = ds4->left_x;
+		        pad_data->ly = ds4->left_y;
+		}
+
 	}
 
 	if (right_js_moved) {
