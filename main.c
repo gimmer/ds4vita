@@ -324,41 +324,63 @@ static void patch_ctrl_data(const struct ds4_input_report *ds4, SceCtrlData *pad
                 convertedY = 128 - ds4->left_y;
 		result = (pow(convertedX,2) + pow(convertedY,2));
 		if(result > pow(256 / 2,2)){
-			if(convertedX > 0){
-                    if(convertedY > 0){
-						//ksceDebugPrintf("Upper right\n");
-                        //upper right
-                        if(convertedX == convertedY){
-                            resultX = 256;
-                            resultY = 0;
-                        }
-                        else if(convertedX < convertedY){
-                            resultX = (int) round((double)((double) convertedX / convertedY * 128)) + 128;
-                            resultY = 0;
-                        }
-                        else{
-                            resultX = 256;
-			    			resultY = 128 - (int) round( (double) ((double) convertedY / convertedX * 128));
-                        }
-                    }
-                    else{
-                        //ksceDebugPrintf("lower right\n");
-                        if(convertedX == (convertedY * -1)){
-                            resultX = 256;
-                            resultY = 256;
-                        }
-                        else if(convertedX < (convertedY * -1)){
-                            resultX = (int) round( (double) ( (double) convertedX / (convertedY * -1) * 128)) + 128;
-                            resultY = 256;
-                        }
-                        else{
-                            resultX = 256;
-                            resultY = 128 + (int) round((double) ( (double) (convertedY * -1) / convertedX * 128));
-                        }
-                    }
+
+			//If you are close enough to a cadinal directional, just make you be that
+			if(convertedX < 2 && convertedX > -2){
+				convertedX = 0;
+			}
+			if(convertedY < 2 && convertedY > -2){
+				convertedY = 0;
+			}
+
+			if(convertedX == 0){
+				resultX = 128;
+				resultY = ds4->left_y;
+			}
+			else if(convertedX > 0){
+
+				if(convertedY == 0){
+					resultX = ds4->left_x;
+					resultY = 128;
+				}	
+				else if(convertedY > 0){
+					//ksceDebugPrintf("Upper right\n");
+	                	        //upper right
+	        	                if(convertedX == convertedY){
+        	        	            resultX = 256;
+                	        	    resultY = 0;
+	                	        }
+        	                	else if(convertedX < convertedY){
+	                	            resultX = (int) round((double)((double) convertedX / convertedY * 128)) + 128;
+        	                	    resultY = 0;
+	        	                }
+        	        	        else{
+						resultX = 256;
+						resultY = 128 - (int) round( (double) ((double) convertedY / convertedX * 128));
+		                        }
+				}
+				else{
+		                        //ksceDebugPrintf("lower right\n");
+                		        if(convertedX == (convertedY * -1)){
+		                            resultX = 256;
+                		            resultY = 256;
+		                        }
+                		        else if(convertedX < (convertedY * -1)){
+		                            resultX = (int) round( (double) ( (double) convertedX / (convertedY * -1) * 128)) + 128;
+                		            resultY = 256;
+		                        }
+                		        else{
+		                            resultX = 256;
+                		            resultY = 128 + (int) round((double) ( (double) (convertedY * -1) / convertedX * 128));
+		                        }
+				}
                 }
                 else{
-                    if(convertedY > 0){
+			if(convertedY == 0) {
+				resultY = 128;
+				resultX = ds4->left_x;
+			}
+			else if(convertedY > 0){
                         //ksceDebugPrintf("upper left\n");
 						if((convertedX * -1) == convertedY){
                             resultX = 0;
