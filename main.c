@@ -534,8 +534,8 @@ static void patch_touch_data(SceUInt32 port, SceTouchData *pData, SceUInt32 nBuf
 		}
 
 		pData++;
+	}
 }
-
 
 DECL_FUNC_HOOK(SceTouch_ksceTouchPeek, SceUInt32 port, SceTouchData *pData, SceUInt32 nBufs)
 {
